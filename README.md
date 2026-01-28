@@ -1,5 +1,4 @@
-# dronebot-2026
-# DroneBot 2026 — ITC/VA Ruiz (Corso di Robotica)
+# DroneBot 2026 — ITC V.A. Ruiz (Corso di Robotica)
 
 Repository ufficiale del progetto per la competizione DroneBot 2026.
 L’obiettivo è sviluppare un sistema integrato **drone + rover** in grado di:
