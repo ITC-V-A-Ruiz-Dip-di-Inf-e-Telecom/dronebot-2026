@@ -1,0 +1,8 @@
+{
+    "venvPath": ".",
+    "venv": ".pixi/envs/default",
+    "exclude": [
+        "**/node_modules",
+        "**/__pycache__"
+    ]
+}
