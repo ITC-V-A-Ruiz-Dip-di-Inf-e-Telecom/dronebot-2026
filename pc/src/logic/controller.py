@@ -1,6 +1,4 @@
 import time
-
-from ultralytics.models.rtdetr import val
 import config
 
 class DetectionController:
@@ -12,8 +10,10 @@ class DetectionController:
         self.streak = 0
         self.total_detections = 0
 
-        self.last_fire_box = None
-        self.confirmed_fire_box = None
+        self.last_fire_box: tuple | None = None
+        self.confirmed_fire_box: tuple | None = None
+        self.fire_center: tuple[int, int] | None = None
+        self.fire_radius_px: int | None = None
 
         self.frame_count = 0
         self.last_time = time.time()
@@ -66,6 +66,9 @@ class DetectionController:
         # Confirm after consecutive frames
         if self.streak >= self.confirm_frames:
             self.confirmed_fire_box = valid_fire
+            x1, y1, x2, y2 = valid_fire
+            self.fire_center = ((x1 + x2) // 2, (y1 + y2) // 2)
+            self.fire_radius_px = min(x2 - x1, y2 - y1) // 2
             self.total_detections += 1
             self.streak = 0
             return True

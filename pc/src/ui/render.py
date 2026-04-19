@@ -1,5 +1,4 @@
 import cv2
-from cv2.detail import PairwiseSeamFinder
 
 class Render:
     def __init__(self) -> None:
@@ -56,6 +55,64 @@ class Render:
             )
 
         return output
+
+    def draw_fire_circle(self, frame, fire_center, fire_radius_px):
+        output = frame.copy()
+        cx, cy = fire_center
+        cv2.circle(output, (cx, cy), fire_radius_px, self.FIRE, 2)
+        cv2.drawMarker(output, (cx, cy), self.FIRE, cv2.MARKER_CROSS, 20, 2)
+        label_y = max(cy - fire_radius_px - 10, 20)
+
+        cv2.putText(
+            output,
+            "FIRE ZONE",
+            (cx - 45, label_y),
+            cv2.FONT_HERSHEY_SIMPLEX,
+            0.7,
+            self.FIRE,
+            2,
+            cv2.LINE_AA
+        )
+        return output
+
+    def draw_phase2_info(self, frame, sub_phase, streak, total_frames, fps):
+
+        h, w = frame.shape[:2]
+
+        panel_height = 100
+        overlay = frame.copy()
+        cv2.rectangle(overlay, (0, 0), (w, panel_height), self.GREY, -1)
+        cv2.addWeighted(overlay, 0.7, frame, 0.3, 0, frame)
+
+        if sub_phase == "locking":
+            phase_text = "PHASE 2a — Locking Fire Circle"
+            progress_text = f"Lock streak: {streak} / {total_frames}"
+            progress_color = self.ORANGE
+        else:
+            phase_text = "PHASE 2b — Checking Rover"
+            progress_text = f"Rover streak: {streak} / {total_frames}"
+            progress_color = self.GREEN if streak > 0 else self.WHITE
+
+        cv2.putText(
+            frame, phase_text,
+            (20, 35),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, self.WHITE, 2, cv2.LINE_AA
+        )
+        cv2.putText(
+            frame, progress_text,
+            (20, 80),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, progress_color, 2, cv2.LINE_AA
+        )
+
+        fps_text = f"{fps:.1f} FPS"
+        fps_size = cv2.getTextSize(fps_text, cv2.FONT_HERSHEY_SIMPLEX, 0.9, 2)[0]
+        cv2.putText(
+            frame, fps_text,
+            (w - fps_size[0] - 20, 35),
+            cv2.FONT_HERSHEY_SIMPLEX, 0.9, self.WHITE, 2, cv2.LINE_AA
+        )
+
+        return frame
 
     def draw_rover(self, frame, rover_box, status="detected"):
         output = frame.copy()
