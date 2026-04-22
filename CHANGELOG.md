@@ -2,6 +2,17 @@
 
 Il progetto segue un'evoluzione per versioni successive. Ogni versione rilevante sarà taggata e, quando utile, pubblicata come Release.
 
+## [3.0] — 2026-04-22
+
+### Added
+- Integrazione completa di 4 sensori ToF VL53L0X (frontale, posteriore, sinistro, destro)
+- Aggiunta sensori bumper (baffi) per rilevamento collisioni fisiche
+- Logica di sicurezza omnidirezionale con veto su tutti e 4 i movimenti
+- Correzione sterzata in retromarcia tramite baffi (comandi Q/E)
+- Versione finale software Raspberry Pi con comunicazione seriale completa
+- Segnale di fase per coordinazione missione con server Flask
+- Workflow GitHub Actions per release automatica al push di tag v*
+
 ## [2.0] — 2026-04-13
 
 ### Added

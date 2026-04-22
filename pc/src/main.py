@@ -7,6 +7,7 @@ from ui.render import Render
 from logic.controller import DetectionController
 from utils.evidence_saver import EvidenceSaver
 from utils.utils import rover_inside_fire_circle
+from comm.flask_client import FlaskClient
 
 cap = cv2.VideoCapture(config.VIDEO_SOURCE)
 
@@ -15,6 +16,7 @@ aruco = ARUCODetector()
 renderer = Render()
 controller = DetectionController()
 saver = EvidenceSaver()
+flask_client = FlaskClient()
 
 PHASE = 1
 
@@ -60,6 +62,8 @@ while True:
             if config.SAVE_EVIDENCE:
                 path = saver.save(frame)
                 print(f"Fire evidence saved → {path}")
+
+            flask_client.send_phase1_complete()
 
             print("\n" + "="*60)
             print("PHASE 1 COMPLETE — TRANSITIONING TO PHASE 2")
@@ -156,6 +160,8 @@ while True:
                     print("\n" + "="*60)
                     print("ROVER CONTAINMENT CONFIRMED — RACE COMPLETE")
                     print("="*60 + "\n")
+
+                    flask_client.send_rover_in_fire()
 
                     if config.SAVE_EVIDENCE:
                         path = saver.save(frame)
