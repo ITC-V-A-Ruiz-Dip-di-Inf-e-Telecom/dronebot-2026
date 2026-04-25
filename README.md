@@ -1,9 +1,10 @@
 # Dronebot 2026 — Team Holly
 
-Documentazione tecnica integrale del sistema di rilevamento incendi e coordinamento rover per la gara Dronebot 2026.
+Documentazione tecnica integrale del sistema di rilevamento fuoco e coordinamento rover per la gara Dronebot 2026.
 Il sistema e' composto da due sottosistemi che comunicano via rete WiFi: uno **Script PC** per il rilevamento tramite drone DJI NEO 1, e un **Rover autonomo** guidato da Raspberry Pi 5 e Arduino Mega Keyestudio.
 
 - **Istituto:** ITC Vincenzo Arangio Ruiz — Roma
+- **Dipartimento:** Informatica e Telecomunicazioni
 - **Team:** TEAM HOLLY
 
 ---
@@ -43,19 +44,19 @@ Il rover riceve il segnale e inizia a prepararsi per il tracciamento.
 
 ### Fase 2 — Coordinamento rover
 
-La fase 2 si divide in due sotto-fasi automatiche.
+La Fase 2 puo' concludersi in due modi distinti, garantendo ridondanza operativa.
 
-**Fase 2a — Blocco del cerchio di fuoco**
+**Percorso A — Verifica automatica completa (primario)**
 
-Il pilota torna nell'area del rover. Il rover inizia a seguire il drone. Il pilota riporta lentamente il drone sopra l'area di fuoco e lo mantiene fermo.
-Lo script rileva nuovamente il fuoco e, quando la posizione e' stabile per `FIRE_LOCK_FRAMES` frame consecutivi, blocca il centro e il raggio del cerchio di fuoco come riferimento preciso.
-Questo riferimento e' piu' accurato di quello della Fase 1 perche' il drone e' esattamente sopra il fuoco alla quota di verifica.
+Il pilota torna nell'area del rover. Il rover inizia a seguire il drone tramite il LED IR. Il pilota riporta lentamente il drone sopra l'area di fuoco e lo mantiene fermo.
 
-**Fase 2b — Verifica contenimento**
+**Fase 2a — Blocco del cerchio:** Lo script rileva nuovamente il fuoco e, quando la posizione e' stabile per `FIRE_LOCK_FRAMES` frame consecutivi, blocca il centro e il raggio del cerchio di fuoco come riferimento preciso. Questo riferimento e' piu' accurato di quello della Fase 1 perche' il drone e' esattamente sopra il fuoco alla quota di verifica.
 
-Lo script verifica che tutti e quattro gli angoli del marker ArUco (montato sul rover) siano all'interno del cerchio di fuoco bloccato.
-Il centro del cerchio viene aggiornato frame per frame per compensare il leggero drift del drone in hovering.
-Quando la condizione e' soddisfatta per `ROVER_CONFIRM_FRAMES` frame consecutivi, il contenimento viene confermato e viene salvata la foto finale come prova.
+**Fase 2b — Verifica contenimento ArUco:** Lo script verifica che tutti e quattro gli angoli del marker ArUco montato sul rover siano all'interno del cerchio bloccato. Il centro del cerchio viene aggiornato frame per frame per compensare il leggero drift del drone in hovering. Quando la condizione e' soddisfatta per `ROVER_CONFIRM_FRAMES` frame consecutivi, il contenimento viene confermato, viene salvata la foto finale come prova e viene inviato `/stop` al rover via HTTP.
+
+**Percorso B — Ridondanza passiva (se pilota esperto)**
+
+Se le condizioni lo permettono, il rover segue il drone direttamente nell'area di fuoco senza passare per il lock o la verifica ArUco: le Fasi 2a e 2b vengono saltate interamente. Quando il drone esce dall'inquadratura, il thread `vision_logic` non rileva piu' il LED IR e imposta `comando_led = X`. Il rover si ferma autonomamente nella posizione corrente all'interno del cerchio di fuoco. I due percorsi sono indipendenti: la ridondanza garantisce il completamento anche in caso di perdita del segnale video.
 
 ---
 
@@ -71,11 +72,11 @@ config:
   layout: elk
 ---
 flowchart TD
-    classDef drone stroke:#f59e0b,fill:#fffbeb
-    classDef comm stroke:#dc143c,fill:#fff1f2
-    classDef process stroke:#8a2be2,fill:#f5f3ff
-    classDef phase stroke:#1d4ed8,fill:#eff6ff
-    classDef evidence stroke:#16a34a,fill:#f0fdf4
+    classDef drone stroke:#b45309,fill:#fef3c7,color:#78350f
+    classDef comm stroke:#b91c1c,fill:#fee2e2,color:#7f1d1d
+    classDef process stroke:#6d28d9,fill:#ede9fe,color:#4c1d95
+    classDef phase stroke:#1d4ed8,fill:#dbeafe,color:#1e3a8a
+    classDef evidence stroke:#15803d,fill:#dcfce7,color:#14532d
 
     DJI["DJI NEO 1\nDrone — camera gimbal"]:::drone
     FLY["DJI FLY\nApp Android\nAbilita Live Streaming RTMP"]:::comm
@@ -92,11 +93,13 @@ flowchart TD
     F1 -->|FUOCO CONFERMATO| EV1["Salva foto prova\nevidence/"]:::evidence
     EV1 --> S1["HTTP POST /start\nRaspberry Pi :5000\nRover inizia a muoversi"]:::comm
 
-    S1 --> F2A["FASE 2a\nDrone ritorna sul fuoco\nAggancio preciso del cerchio\nFIRE_LOCK_FRAMES = 20"]:::phase
+    S1 --> F2A["PERCORSO A — FASE 2a\nDrone ritorna sul fuoco\nAggancio preciso del cerchio\nFIRE_LOCK_FRAMES = 20"]:::phase
+    S1 -.->|"PERCORSO B\nse rover gia' nell'area"| PASS["Drone esce dal frame\ncomando_led = X\nRover si ferma nell'area di fuoco\n2a e 2b saltate"]:::evidence
     F2A -->|CERCHIO AGGANCIATO| F2B["FASE 2b\nRileva marker ArUco sul rover\nVerifica che sia dentro il cerchio\nROVER_CONFIRM_FRAMES = 5"]:::phase
     F2B -->|CONTENIMENTO CONFERMATO| EV2["Salva foto finale\nevidence/"]:::evidence
     EV2 --> S2["HTTP POST /stop\nRaspberry Pi :5000"]:::comm
     S2 --> FIN["GARA COMPLETATA"]:::evidence
+    PASS --> FIN
 ```
 
 ### Lato Rover
@@ -107,11 +110,11 @@ config:
   layout: elk
 ---
 flowchart TD
-    classDef raspberry stroke:#4e5b69,fill:#eef2ff
-    classDef arduino stroke:#008080,fill:#f0fdfa
-    classDef sensor stroke:#87ceeb,fill:#f0f9ff
-    classDef control stroke:#8a2be2,fill:#f5f3ff
-    classDef comm stroke:#dc143c,fill:#fff1f2
+    classDef raspberry stroke:#3730a3,fill:#e0e7ff,color:#1e1b4b
+    classDef arduino stroke:#0f766e,fill:#ccfbf1,color:#134e4a
+    classDef sensor stroke:#0369a1,fill:#bae6fd,color:#0c4a6e
+    classDef control stroke:#6d28d9,fill:#ede9fe,color:#4c1d95
+    classDef comm stroke:#b91c1c,fill:#fee2e2,color:#7f1d1d
 
     HTTP["/start ricevuto da PC\nstato_gara = IN_MARCIA"]:::comm
 
@@ -392,11 +395,11 @@ config:
   layout: elk
 ---
 flowchart TB
-    classDef raspberry stroke:#4e5b69,fill:#eef2ff
-    classDef arduino stroke:#008080,fill:#f0fdfa
-    classDef sensor stroke:#87ceeb,fill:#f0f9ff
-    classDef control stroke:#8a2be2,fill:#f5f3ff
-    classDef power stroke:#f59e0b,fill:#fffbeb
+    classDef raspberry stroke:#3730a3,fill:#e0e7ff,color:#1e1b4b
+    classDef arduino stroke:#0f766e,fill:#ccfbf1,color:#134e4a
+    classDef sensor stroke:#0369a1,fill:#bae6fd,color:#0c4a6e
+    classDef control stroke:#6d28d9,fill:#ede9fe,color:#4c1d95
+    classDef power stroke:#b45309,fill:#fef3c7,color:#78350f
 
     subgraph LOGIC["Elettronica Logica — alimentata a 7.4V LiPo"]
         RPI5["Raspberry Pi 5\n8 GB RAM\nholy_brain_v13.9.py"]:::raspberry
@@ -404,8 +407,8 @@ flowchart TB
         LIDAR["YDLiDAR X4 Pro\n360 gradi 2D Laser\n/dev/ttyUSB0 USB\nEvita ostacoli in autonomia"]:::sensor
         ADS["ADS1115 16-bit ADC\nBus I2C — indirizzo 0x48\nMonitoraggio tensione batteria logica\nPartitore 10k/4.7k"]:::sensor
         BATT7["Batteria Logica\nLiPo 7.4V 2S 2700 mAh\nXell-Sport 30C"]:::power
-        STEP["Step-Down XL4016E1\n7.4V a 5V 8A\nAlimenta tutta la logica"]:::control
-        LS["Level Shifter\n3.3V a 5V\nAdatta UART RPi-Arduino"]:::control
+        STEP["Step-Down XL4016E1\n7.4V a 5.2V 8A\nAlimenta tutta la logica"]:::control
+        LS["Level Shifter Bidirezionale\n3.3V a 5V\nAdatta UART RPi-Arduino"]:::control
     end
 
     subgraph POWER["Elettronica Potenza — alimentata a 11.1V LiPo"]
@@ -422,7 +425,7 @@ flowchart TB
     ADS --- RPI5
     BATT7 --- ADS
     BATT7 --- STEP
-    STEP -->|5V| RPI5
+    STEP -->|5.2V| RPI5
     RPI5 --- LS
     LS -->|UART 115200 baud| ARD
     ARD --- TOF
@@ -438,10 +441,13 @@ Il rover usa due batterie separate per isolare la logica dalla potenza:
 
 | Batteria | Modello | Tensione | Uso |
 |----------|---------|----------|-----|
-| Logica | Xell-Sport 2S LiPo 7.4 V 2700 mAh | 7.4 V → Step-Down → 5 V | Raspberry Pi 5, Arduino, sensori |
+| Logica RPi | LiPo 7.4 V 2700 mAh 2S | 7.4 V → Step-Down → 5.2 V | Raspberry Pi 5 e sensori logici |
+| Logica Arduino | LiPo 7.4 V 2200 mAh 2S | 7.4 V → Step-Down | Arduino Mega e periferiche |
 | Potenza | Xell-Light 3S LiPo 11.1 V 1300 mAh | 11.1 V diretti | Motori DC 12 V tramite L298N |
 
-Lo Step-Down XL4016E1 abbassa la tensione logica da 7.4 V a 5 V. L'ADS1115 monitora in tempo reale la tensione della batteria logica tramite un partitore resistivo (10 kΩ / 4.7 kΩ).
+Lo Step-Down XL4016E1 abbassa la tensione logica da 7.4 V a **5.2 V** (regolato con potenziometro per compensare il calo sotto carico e garantire stabilita' al Raspberry Pi 5). Il Level Shifter bidirezionale 3.3V ↔ 5V adatta i livelli logici della linea UART tra i due microcontrollori. L'ADS1115 monitora in tempo reale la tensione della batteria logica tramite un partitore resistivo (10 kΩ / 4.7 kΩ).
+
+Sul connettore di bilanciamento della batteria logica RPi (7.4 V 2S) e' collegato un **tester LiPo con buzzer** impostato a **3.4 V per cella** come soglia di allarme sonoro: quando una delle celle scende sotto questa soglia il buzzer suona avvisando il team prima che la tensione raggiunga livelli critici per il Raspberry Pi.
 
 ### Sistema di Visione — Tracciamento LED IR
 
@@ -453,11 +459,11 @@ config:
   layout: elk
 ---
 flowchart TD
-    classDef sensor stroke:#87ceeb,fill:#f0f9ff
-    classDef process stroke:#8a2be2,fill:#f5f3ff
-    classDef decision stroke:#f59e0b,fill:#fffbeb
-    classDef command stroke:#dc143c,fill:#fff1f2
-    classDef stop stroke:#6b7280,fill:#f9fafb
+    classDef sensor stroke:#0369a1,fill:#bae6fd,color:#0c4a6e
+    classDef process stroke:#6d28d9,fill:#ede9fe,color:#4c1d95
+    classDef decision stroke:#b45309,fill:#fef3c7,color:#78350f
+    classDef command stroke:#b91c1c,fill:#fee2e2,color:#7f1d1d
+    classDef stop stroke:#374151,fill:#f1f5f9,color:#1f2937
 
     CAM["Pi Camera 3 NoIR Wide\nSensore senza filtro IR incorporato\nCaptura anche la luce infrarossa"]:::sensor
     FILT["Filtro Hoya R72 — 720nm\nBlocca tutta la luce visibile\nLascia passare solo l'infrarosso\nIl LED IR sul drone diventa l'unico punto luminoso"]:::sensor
@@ -506,6 +512,8 @@ File: `rover/arduino/holly_mega_v12.11.ino`
 | ToF XSHUT | 15 | X_R — accensione sensore Destro |
 | ToF XSHUT | 16 | X_L — accensione sensore Sinistro |
 | ToF XSHUT | 17 | X_B — accensione sensore Posteriore |
+| Serial1 | 18 | TX1 — trasmissione verso Raspberry Pi (via Level Shifter bidirezionale) |
+| Serial1 | 19 | RX1 — ricezione da Raspberry Pi (via Level Shifter bidirezionale) |
 | Bumper | 52 | B_SX — micro-switch sinistro (INPUT_PULLUP) |
 | Bumper | 53 | B_DX — micro-switch destro (INPUT_PULLUP) |
 
@@ -625,7 +633,15 @@ Urto meccanico → retromarcia asimmetrica `Q`/`E` per 6 cicli (0.3 s). Scavalca
 
 ### Flask — Dashboard e API
 
-La dashboard web e' accessibile all'indirizzo `http://<IP_ROVER>:5000`.
+La dashboard web e' accessibile all'indirizzo `http://<IP_ROVER>:5000` da qualsiasi browser sulla stessa rete WiFi.
+
+**Accesso via SSH (consigliato in gara):** Se non si e' sulla stessa rete del rover ma si ha accesso SSH, creare un tunnel locale:
+
+```bash
+ssh -L 5000:localhost:5000 ruiz@<IP_ROVER>
+```
+
+Poi aprire `http://localhost:5000` nel browser del PC. Il tunnel rimane attivo finche' la sessione SSH e' aperta.
 
 | Route | Metodo | Funzione |
 |-------|--------|----------|
@@ -716,13 +732,55 @@ journalctl -u holly_rover.service -f
 
 ### Protezione Scheda SD (OverlayFS)
 
-Per prevenire la corruzione della scheda SD in caso di spegnimento improvviso, il filesystem root e' montato in modalita' overlay (read-only con write layer in RAM).
+Per prevenire la corruzione della scheda SD in caso di spegnimento improvviso, il filesystem root viene montato in modalita' overlay (read-only con write layer volatile in RAM). **Ogni modifica fatta con l'overlay attivo viene persa al riavvio.**
+
+#### Verifica stato attuale
 
 ```bash
-# Verifica che la protezione sia attiva
 mount | grep "on / "
-# L'output deve contenere "type overlay"
+# Output (rw,...): filesystem scrivibile — modalita' sviluppo
+# Output (overlay on / type overlay): protetto — modalita' gara
+
+mount | grep /boot/firmware
+# Deve essere rw per poter cambiare le impostazioni dell'overlay
 ```
+
+#### Procedura 1 — Blocco (Modalita' Gara, read-only)
+
+Da eseguire prima di scendere in pista per proteggere la SD da cali di tensione.
+
+```bash
+sudo raspi-config
+# Performance Options -> Overlay File System -> Yes (Abilita)
+# Alla domanda sulla partizione di boot -> Yes (Proteggi)
+
+sync          # forza la scrittura di tutti i dati pendenti
+sudo reboot
+```
+
+#### Procedura 2 — Sblocco (Modalita' Sviluppo, read-write)
+
+Da eseguire per installare librerie, modificare script o configurare hardware.
+
+**Metodo A — Standard:**
+
+```bash
+sudo raspi-config
+# Performance Options -> Overlay File System -> No (Disabilita)
+# Alla domanda sulla partizione di boot -> Yes (Rendi scrivibile)
+sudo reboot
+```
+
+**Metodo B — Forzato (se il menu da' errore "Read-only"):**
+
+```bash
+sudo mount -o remount,rw /boot/firmware
+sudo raspi-config nonint do_overlayfs 1
+sudo reboot
+```
+
+> [!NOTE]
+> Usa sempre `sync` dopo aver modificato script importanti e prima di attivare il blocco. Quando l'overlay e' attivo, i file creati o modificati spariscono al riavvio: assicurati di essere in modalita' RW prima di lavorare sul codice.
 
 ---
 
@@ -731,7 +789,7 @@ mount | grep "on / "
 **PC:**
 
 - **Pixi** — gestore di pacchetti: https://pixi.prefix.dev/latest/
-- **scrcpy** — streaming schermo Android: `apt install scrcpy` / `pacman -S scrcpy`
+- **scrcpy** — streaming schermo Android: `apt install scrcpy` (Debian/Ubuntu)
 - **adb** — Android Debug Bridge (incluso con scrcpy o installabile via package manager)
 - **v4l2loopback** — modulo kernel per la webcam virtuale
 - **Dispositivo Android** con debug USB abilitato
@@ -747,14 +805,15 @@ mount | grep "on / "
 
 ## Installazione
 
-### Installare le dipendenze con supporto GPU
+### 1. Dipendenze Python e PyTorch con supporto GPU
+
+Lo script `pc/setup_pytorch.sh` installa le dipendenze pixi, rimuove PyTorch CPU-only e installa PyTorch con supporto CUDA 12.1:
 
 ```bash
+cd pc
 pixi install
-./setup.sh
+./setup_pytorch.sh
 ```
-
-Lo script installa le dipendenze pixi, rimuove PyTorch CPU-only e installa PyTorch con CUDA 12.1.
 
 **Verifica che CUDA funzioni:**
 
@@ -762,7 +821,23 @@ Lo script installa le dipendenze pixi, rimuove PyTorch CPU-only e installa PyTor
 pixi run python -c "import torch; print('CUDA:', torch.cuda.is_available()); print('GPU:', torch.cuda.get_device_name(0) if torch.cuda.is_available() else 'N/A')"
 ```
 
-### Creare la webcam virtuale
+### 2. Server RTMP con ffmpeg
+
+Lo script `pc/setup_ffmpeg_rtmp.sh` avvia il server RTMP che riceve il video da DJI FLY e lo scrive sulla webcam virtuale:
+
+```bash
+./setup_ffmpeg_rtmp.sh
+```
+
+Equivale a:
+
+```bash
+ffmpeg -fflags nobuffer -flags low_delay -listen 1 -i rtmp://0.0.0.0:1935/live/drone -f v4l2 /dev/video10
+```
+
+### 3. Creare la webcam virtuale
+
+Lo script `pc/setup_virtual_camera.sh` carica il modulo kernel v4l2loopback e crea il dispositivo `/dev/video10`:
 
 ```bash
 sudo ./setup_virtual_camera.sh
@@ -774,7 +849,7 @@ Oppure manualmente:
 sudo modprobe v4l2loopback devices=1 video_nr=10 card_label="PhoneCam" exclusive_caps=1
 ```
 
-Il modulo crea il dispositivo `/dev/video10`. Il numero puo' essere cambiato modificando anche `VIDEO_SOURCE` in `src/config.py`.
+Il numero del dispositivo puo' essere cambiato modificando anche `VIDEO_SOURCE` in `src/config.py`.
 
 **Su Fedora / RHEL (v4l2loopback non disponibile di default):**
 
