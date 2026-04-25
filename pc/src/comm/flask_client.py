@@ -8,10 +8,10 @@ class FlaskClient:
         self.timeout = 3
 
     def send_phase1_complete(self) -> bool:
-        return self._post("/start_hunt")
+        return self._post("/start")
 
     def send_rover_in_fire(self) -> bool:
-        return self._post("/stop_all")
+        return self._post("/stop")
 
     def _post(self, endpoint: str) -> bool:
         try:
