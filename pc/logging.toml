@@ -1,0 +1,23 @@
+version = 1
+disable_existing_loggers = false
+
+[formatters.standard]
+format = "%(asctime)s [%(levelname)-8s] %(name)-24s %(message)s"
+datefmt = "%H:%M:%S"
+
+[handlers.file]
+class = "logging.handlers.RotatingFileHandler"
+formatter = "standard"
+filename = "logs/dronebot.log"
+maxBytes = 5242880
+backupCount = 3
+level = "DEBUG"
+
+[handlers.console]
+class = "logging.StreamHandler"
+formatter = "standard"
+level = "WARNING"
+
+[root]
+level = "DEBUG"
+handlers = ["file", "console"]

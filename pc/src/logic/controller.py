@@ -1,5 +1,9 @@
+import logging
 import time
 import config
+
+log = logging.getLogger(__name__)
+
 
 class DetectionController:
     def __init__(self) -> None:
@@ -33,14 +37,13 @@ class DetectionController:
 
         valid_fire = None
 
-        # Filter by area
         for detec in detections:
             x1, y1, x2, y2 = detec["box"]
             area = (x2 - x1) * (y2 - y1)
 
             if area >= self.min_fire_area:
                 valid_fire = detec["box"]
-                print(f" | Fire area: {area:.0f}", end="")
+                log.debug("fire area=%.0f", area)
                 break
 
         if valid_fire is None:
@@ -48,14 +51,11 @@ class DetectionController:
             self.last_fire_box = None
             return False
 
-        # Stability check
         if self.last_fire_box is not None:
             shift = self._box_shift(valid_fire, self.last_fire_box)
-
-            print(f" | Shift: {shift:.1f}", end="")
+            log.debug("shift=%.1f (limit %d)", shift, self.max_fire_shift)
 
             if shift >= self.max_fire_shift:
-                print(f" (>{self.max_fire_shift})", end="")
                 self.streak = 0
                 self.last_fire_box = valid_fire
                 return False
@@ -63,7 +63,6 @@ class DetectionController:
         self.last_fire_box = valid_fire
         self.streak += 1
 
-        # Confirm after consecutive frames
         if self.streak >= self.confirm_frames:
             self.confirmed_fire_box = valid_fire
             x1, y1, x2, y2 = valid_fire

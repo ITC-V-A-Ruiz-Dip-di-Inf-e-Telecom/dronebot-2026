@@ -1,5 +1,10 @@
+import logging
 import cv2
 import config
+from utils.log_setup import setup as setup_logging
+
+setup_logging()
+log = logging.getLogger("main")
 
 from detection.yolo_detector import YOLODetector
 from detection.aruco_detector import ARUCODetector
@@ -23,7 +28,7 @@ PHASE = 1
 # Phase 2 state
 fire_locked = False
 fire_lock_streak = 0
-fire_lock_last = None # last fire box used for shift comparison
+fire_lock_last = None
 rover_streak = 0
 
 cv2.namedWindow("Fire Detector", cv2.WINDOW_NORMAL)
@@ -38,16 +43,13 @@ while True:
     if PHASE == 1:
         detections = detector.detect(frame)
 
-        print(f"[Phase 1] Detections: {len(detections)}", end="")
+        log.debug("[Phase 1] detections=%d streak=%d/%d",
+                  len(detections), controller.streak, controller.confirm_frames)
 
         alert = controller.process(detections)
 
-        print(f" | Streak: {controller.streak}/{controller.confirm_frames}", end="")
-
         if alert:
-            print(" | FIRE CONFIRMED!")
-        else:
-            print()
+            log.info("[Phase 1] FIRE CONFIRMED (total=%d)", controller.total_detections)
 
         frame = renderer.draw(frame, detections)
         frame = renderer.draw_info(
@@ -61,14 +63,12 @@ while True:
         if alert:
             if config.SAVE_EVIDENCE:
                 path = saver.save(frame)
-                print(f"Fire evidence saved → {path}")
+                log.info("evidence saved → %s", path)
 
-            flask_client.send_phase1_complete()
+            if not flask_client.send_phase1_complete():
+                log.error("rover not notified of phase 1 — it may not start moving")
 
-            print("\n" + "="*60)
-            print("PHASE 1 COMPLETE — TRANSITIONING TO PHASE 2")
-            print("  Fly to the rover area.")
-            print("="*60 + "\n")
+            log.info("PHASE 1 COMPLETE — transitioning to phase 2")
             PHASE = 2
 
     elif PHASE == 2:
@@ -78,7 +78,6 @@ while True:
         fire_detection = detector.detect(frame)
         frame = renderer.draw(frame, fire_detection)
 
-        # 2a hover until the circle is stable and locked 
         if not fire_locked:
 
             best_fire = None
@@ -105,17 +104,16 @@ while True:
             frame = renderer.draw_phase2_info(
                 frame, "locking", fire_lock_streak, config.FIRE_LOCK_FRAMES, controller.fps
             )
-            print(f"[Phase 2a] Locking fire: {fire_lock_streak}/{config.FIRE_LOCK_FRAMES}", end="\r")
+            log.debug("[Phase 2a] lock streak=%d/%d", fire_lock_streak, config.FIRE_LOCK_FRAMES)
 
             if fire_lock_streak >= config.FIRE_LOCK_FRAMES and fire_lock_last is not None:
                 x1, y1, x2, y2 = fire_lock_last
                 controller.fire_center    = ((x1 + x2) // 2, (y1 + y2) // 2)
                 controller.fire_radius_px = min(x2 - x1, y2 - y1) // 2
                 fire_locked = True
-                print(f"\n[Phase 2a] Circle locked — center {controller.fire_center},"
-                      f" radius {controller.fire_radius_px} px")
+                log.info("[Phase 2a] circle locked — center=%s radius=%dpx",
+                         controller.fire_center, controller.fire_radius_px)
 
-        # 2b checks rover is inside the locked circle
         else:
             if controller.fire_center is not None:
                 for detec in fire_detection:
@@ -125,7 +123,7 @@ while True:
                     old_cx, old_cy = controller.fire_center
                     if ((cx - old_cx) ** 2 + (cy - old_cy) ** 2) ** 0.5 <= config.MAX_FIRE_SHIFT:
                         controller.fire_center = (cx, cy)
-                        break   # radius stays locked from 2a
+                        break
 
             frame = renderer.draw_fire_circle(
                 frame, controller.fire_center, controller.fire_radius_px
@@ -135,8 +133,6 @@ while True:
             )
 
             rover_box = aruco.detect(frame)
-
-            print(f"[Phase 2b] Rover: {'Yes' if rover_box else 'No '}", end="")
 
             if rover_box:
                 contained = rover_inside_fire_circle(
@@ -148,32 +144,30 @@ while True:
 
                 if contained:
                     rover_streak += 1
-                    print(f" | Streak: {rover_streak}/{config.ROVER_CONFIRM_FRAMES} v", end="")
+                    log.debug("[Phase 2b] rover streak=%d/%d contained",
+                              rover_streak, config.ROVER_CONFIRM_FRAMES)
                     frame = renderer.draw_rover(frame, rover_box, status="contained")
                 else:
+                    if rover_streak > 0:
+                        log.debug("[Phase 2b] rover streak reset (was %d)", rover_streak)
                     rover_streak = 0
-                    print(f" | Streak: 0/{config.ROVER_CONFIRM_FRAMES} x", end="")
                     frame = renderer.draw_rover(frame, rover_box, status="not_contained")
 
                 if rover_streak >= config.ROVER_CONFIRM_FRAMES:
-                    print()
-                    print("\n" + "="*60)
-                    print("ROVER CONTAINMENT CONFIRMED — RACE COMPLETE")
-                    print("="*60 + "\n")
+                    log.info("ROVER CONTAINMENT CONFIRMED — race complete")
 
-                    flask_client.send_rover_in_fire()
+                    if not flask_client.send_rover_in_fire():
+                        log.error("rover not notified of containment — it may not stop")
 
                     if config.SAVE_EVIDENCE:
                         path = saver.save(frame)
-                        print(f"Final evidence saved -> {path}")
+                        log.info("final evidence saved → %s", path)
 
                     break
             else:
                 if rover_streak > 0:
-                    print(f" | Streak RESET (was {rover_streak})", end="")
+                    log.debug("[Phase 2b] rover lost, streak reset (was %d)", rover_streak)
                     rover_streak = 0
-
-            print()
 
     cv2.imshow("Fire Detector", frame)
 
