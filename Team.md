@@ -3,7 +3,8 @@
 Il successo del progetto Holly (ITC V. Arangio Ruiz, Roma) nasce dalla sinergia tra diverse aree di specializzazione integrate:
 
 ## Leadership & Supervision
-- **Prof. Riccardo Annolfi**: Technical Project Supervisor & Research Lead
+
+- **Prof. Riccardo Annolfi**: Technical Project Supervisor & Research Lead https://github.com/RicAnn
 - **Prof.ssa Giselda De Vita**: Academic Coordinator & Project Coordinator
 - **Prof.ssa Guglielmina Uliano**: Head of School & Institutional Supervisor
 

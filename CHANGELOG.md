@@ -2,6 +2,31 @@
 
 Il progetto segue un'evoluzione per versioni successive. Ogni versione rilevante sarà taggata e, quando utile, pubblicata come Release.
 
+## [4.0] — 2026-04-26
+
+### Added
+- Sistema di logging strutturato per gli script PC (`pc/logging.toml`, `pc/src/utils/log_setup.py`)
+- SBOM (Software Bill of Materials) del progetto (`SBOM.md`)
+- Bill of Materials hardware del rover (`BILL_OF_MATERIALS.md`)
+- Diagramma tecnico dell'architettura hardware (`Technical_Diagram.jpg`)
+- Script di setup separato per ffmpeg RTMP (`pc/setup_ffmpeg_rtmp.sh`)
+- Workflow GitHub Actions per release automatica al push di tag `v*` (`.github/workflows/release.yml`)
+- File `Team.md` con composizione del team
+- README completo con flowchart di missione, istruzioni di setup e schema elettrico
+- Modelli 3D per camera oscura e supporto GoPro (`3dModels/estensione.stl`, `3dModels/supporto.stl`)
+- README nella cartella `media/` per preview immagini su GitHub
+
+### Changed
+- Refactoring script PC: `flask_client.py`, `controller.py`, `main.py` e `yolo_detector.py` aggiornati con logging integrato
+- Aggiornati endpoint Flask e valori di configurazione in `pc/src/config.py`
+- Rinominato `setup.sh` → `setup_pytorch.sh` per maggiore chiarezza
+- Rinominate immagini nella cartella `media/` con nomi leggibili (`screenshot2.png` … `screenshot13.png`)
+- README aggiornato: aggiunta fase 2 con sottofasi, migliorata leggibilità dei flowchart, corrette indicazioni hardware (pin seriali Arduino 18/19, step-down batteria Raspberry)
+- Dipendenze PC aggiornate (`pc/pixi.toml`, `pc/pixi.lock`)
+
+### Removed
+- Rimossa directory `docs/` (contenuto migrato in README e Team.md)
+
 ## [3.0] — 2026-04-22
 
 ### Added
